@@ -1,0 +1,52 @@
+<p><button onclick=preview(event)>preview</button></p>
+<div id=result>working</div>
+<style> body { font-family: Arial, Helvetica, sans-serif; } </style>
+
+<script>
+
+  let infos = []
+  fetch(`/system/sitemap.json`).then(res => res.json()).then(tally)
+
+  function tally(sitemap) {
+    infos = sitemap.filter(info => !info.synopsis.startsWith('▷'))
+    result.innerHTML = `${infos.length} operational pages`
+    console.log(infos)
+  }
+
+  function preview(event) {
+    const quote = str => `"${str.replace(/ /g,'\n')}"`
+    let dot = [`digraph {`, `node [shape=box style=filled fillcolor=bisque]`]
+    for (let info of infos) {
+      let start = quote(info.title)
+      for (let slug in info.links) {
+        let target = infos.find(info => info.slug == slug)
+        if (target) {
+          let stop = quote(target.title)
+          dot.push(`${start} -> ${stop}`)          
+        }
+
+      }
+    }
+    dot.push(`}`)
+    let text = dot.join("\n")
+    let story = [
+      {type: 'paragraph', text: `We follow links from and to operational pages in this site.`},
+      {type: 'graphviz', text}
+    ]
+    let title = 'Operational Page Graph'
+    open({title, story}, event.shiftKey)
+  }
+
+
+// U T I L I T I E S
+
+  function open(page, keepLineup=false, forks=[]) {
+    const dup = obj => JSON.parse(JSON.stringify(obj))
+    let date = Date.now()
+    for (let item of page.story) item.id = (Math.random()*10**20).toFixed(0)
+    page.journal = [{type:'create', date, item:dup(page)}, ...forks.map(site => ({type:'fork',date,site}))]
+    let message = {action: "showResult", page, keepLineup}
+    window.parent.postMessage(message, "*");
+  }
+
+</script>
