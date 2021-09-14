@@ -1,0 +1,87 @@
+<div id=result>working</div>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; }
+  h3, span { cursor: pointer; }
+</style>
+
+<script>
+
+  let infos = []
+  let categories = {}
+  fetch(`/system/sitemap.json`).then(res => res.json()).then(tally)
+
+  function tally(sitemap) {
+    infos = sitemap.filter(info => info.synopsis.startsWith('▷'))
+    result.innerHTML = `${infos.length} place pages`
+
+    for (let info of infos) {
+      let m = info.synopsis.match(/^▷([\w ]+)[\.\,]/)
+      if (m) {
+        let tag = m[1]
+        let cat = categories[tag] ||= []
+        cat.push(info)
+      }
+    }
+    console.log(categories)
+
+    for (let tag in categories) {
+      let cat = categories[tag]
+      cat.sort((a,b) => a.date - b.date)
+      result.innerHTML += `<h3 onclick=map(event)>${tag}</h3>${cat.map(info => `<span onclick=show(event)>${info.title}</span>`).join('<br>')}`
+    }
+  }
+
+  function show(event) {
+    let title = event.target.innerText
+    let message = {
+      action:"doInternalLink",
+      title,
+      keepLineup: event.shiftKey
+    }
+    window.parent.postMessage(message, "*")
+  }
+
+  async function map(event) {
+    let category = event.target.innerText
+    let slugs = categories[category].map(info => info.slug)
+    let pages = await Promise.all(slugs.map(slug => fetch(`/${slug}.json`).then(res => res.json())))
+    let text = pages.map(center).join("\n")
+    let title = `Places Tagged ${category}`
+    let story = [
+      {type:'paragraph', text:'We found pages for these places.'},
+      {type:'map', text}
+    ]
+    open({title,story},event.shiftKey)
+  }
+
+  function center(page) {
+    let markup = page.story.find(item => item.type == 'map').text
+    let lat = []
+    let lon = []
+    for (let line of markup.split(/\n/)) {
+      let m = line.match(/^(-?\d+\.\d+), ?(-?\d+\.\d+)/)
+      if(m) {
+        lat.push(+m[1])
+        lon.push(+m[2])
+      }
+    }
+    let n = lat.length
+    lat = lat.reduce((a,b) => a+b)/n
+    lon = lon.reduce((a,b) => a+b)/n
+    return `${lat}, ${lon} [[${page.title}]]`
+  }
+
+
+
+// U T I L I T I E S
+
+  function open(page, keepLineup=false, forks=[]) {
+    const dup = obj => JSON.parse(JSON.stringify(obj))
+    let date = Date.now()
+    for (let item of page.story) item.id = (Math.random()*10**20).toFixed(0)
+    page.journal = [{type:'create', date, item:dup(page)}, ...forks.map(site => ({type:'fork',date,site}))]
+    let message = {action: "showResult", page, keepLineup}
+    window.parent.postMessage(message, "*");
+  }
+
+</script>
