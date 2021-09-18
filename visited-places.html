@@ -24,7 +24,7 @@
     }
     console.log(categories)
 
-    for (let tag in categories) {
+    for (let tag of Object.keys(categories).sort()) {
       let cat = categories[tag]
       cat.sort((a,b) => a.date - b.date)
       result.innerHTML += `<h3 onclick=map(event)>${tag}</h3>${cat.map(info => `<span onclick=show(event)>${info.title}</span>`).join('<br>')}`
@@ -48,7 +48,7 @@
     let text = pages.map(center).join("\n")
     let title = `Places Tagged ${category}`
     let story = [
-      {type:'paragraph', text:'We found pages for these places.'},
+      {type:'paragraph', text:'We found pages for these places. Update this page from the category on the [[View Places]] page.'},
       {type:'map', text}
     ]
     open({title,story},event.shiftKey)
