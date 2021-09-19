@@ -1,0 +1,109 @@
+<meta charset="utf-8"/>
+<div id=result>working</div>
+<p id=gallery></p>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+<script type=module>
+
+indexer()
+
+async function indexer() {
+  let allassets = await sources('assets')
+  if (allassets.error) return result(allassets.error)
+  let data = allassets[0].assetsData
+  let folder = Object.keys(data)[0]
+  let endpoint = Object.keys(data[folder])[0]
+  let files = data[folder][endpoint]
+  let done = [
+    'IMG_5719.JPG','IMG_5720.JPG','IMG_5722.JPG','IMG_5723.JPG','IMG_5724.JPG',
+    'IMG_5728.JPG','IMG_5730.JPG','IMG_5731.JPG','IMG_5732.JPG','IMG_5733.JPG',
+    'IMG_5734.JPG','IMG_5735.JPG','IMG_5737.JPG','IMG_5739.JPG','IMG_5740.JPG',
+    'IMG_5741.JPG','IMG_5742.JPG','IMG_5743.JPG','IMG_5745.JPG',// 'IMG_5746.JPG',
+    // 'IMG_5748.JPG','IMG_5749.JPG','IMG_5750.JPG','IMG_5752.JPG','IMG_5753.JPG',
+  ]
+  const thumbnail = file => `<img width=47% src="${endpoint}/${folder}/${file}" onclick="pick(event)">`
+  window.gallery.innerHTML = files.filter(file => !done.includes(file)).map(thumbnail).join(" ")
+  result(`
+    <p>Name the Place Now or Look Ahead</p>
+    <input id=title name=title size=50 placeholder="New Page Title">
+    <p>Click First Photo of Sequence</p>
+  `)
+}
+
+function result(html) {
+  window.result.innerHTML = html
+}
+
+window.pick = async function (event) {
+  let page = await build(event.target)
+  open(page,event.shiftKey)
+}
+
+async function build(img){
+  let {date, lat, lon} = await exif(img)
+  let map = `https://www.google.com/search?q=${lat},%20${lon}`
+  let day = date.toLocaleString('en-us', {weekday:'long'})
+  let month = date.toLocaleString('en-us', {month:'long'})
+  let daydate = `${day}, ${month} ${date.getDate()}, ${date.getYear()+1900}`
+  let title = window.title.value || "Photo with Map Preview"
+  return  {title, story:[
+    {type:'paragraph',text:"describe this trail"},
+    {type:'html',text:`<img width=100% src=${img.src}>`},
+    {type:'paragraph',text:daydate},
+    {type:'map',text:`${lat}, ${lon}\n[${map} google map]`}
+  ]}
+}
+
+
+// U T I L I T I E S
+
+
+function sources(topic) {
+  const action = 'requestSourceData'
+  return new Promise(resolve => {
+    let handler = event => {
+      let {data} = event
+      if (!data.action == action) return
+      window.removeEventListener('message',handler)
+      resolve(data.sources)
+    }
+    window.addEventListener('message',handler)
+    window.parent.postMessage({action, topic},"*")
+  })
+}
+
+function open(page, keepLineup=false, forks=[]) {
+  const dup = (obj) => JSON.parse(JSON.stringify(obj))
+  let date = Date.now()
+  for (let item of page.story) item.id = (Math.random()*10**20).toFixed(0)
+  page.journal = [{type:'create', date, item:dup(page)}, ...forks.map(site => ({type:'fork',date,site}))]
+  let message = {action: "showResult", page, keepLineup}
+  window.parent.postMessage(message, "*")
+}
+
+// https://github.com/exif-js/exif-js
+
+function exif(img) {
+  const latlon = exif => {
+    let deg = exif[0] + exif[1]/60 + exif[2]/60/60
+    if ('SW'.includes(exif[3])) deg = -deg
+    deg = deg.toFixed(7)
+    return +deg
+  }
+  return new Promise((resolve, reject) => {
+    EXIF.getData(img, function() {
+      let file = img.src.split('/').pop()
+      let make = EXIF.getTag(this, "Make");
+      let model = EXIF.getTag(this, "Model");
+      let clock = EXIF.getTag(this, "DateTimeOriginal")
+      let str = clock.split(" ");
+      let iso = str[0].replace(/:/g, "-");
+      let date = new Date(iso + " " +str[1]);
+      let lat = latlon([...EXIF.getTag(this, "GPSLatitude"), EXIF.getTag(this, "GPSLatitudeRef")])
+      let lon = latlon([...EXIF.getTag(this, "GPSLongitude"), EXIF.getTag(this, "GPSLongitudeRef")])
+      resolve({file,make,model,date,lat,lon})
+    })
+  })
+}
+
+</script>
