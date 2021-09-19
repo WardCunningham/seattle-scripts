@@ -13,15 +13,16 @@ async function indexer() {
   let data = allassets[0].assetsData
   let folder = Object.keys(data)[0]
   let endpoint = Object.keys(data[folder])[0]
-  let files = data[folder][endpoint].filter(file => file.endsWith('JPG'))
+  let files = data[folder][endpoint].filter(file => /\.jpe?g$/i.test(file))
 
   let done = await alldone()
   let todo = files.filter(file => !done.includes(file))
   const thumbnail = file => `<img width=47% src="${endpoint}/${folder}/${file}" onclick="pick(event)">`
-  if (todo.lenght > 0) {
+  if (todo.length) {
     window.gallery.innerHTML = todo.map(thumbnail).join(" ")
   } else {
-    window.gallery.innerHTML = `<center><i>no new images of ${files.length} uploaded</i></center>`
+    window.gallery.innerHTML = `<center><i>No new images among ${files.length} uploaded</i></center>`
+    console.log({files,done,todo})
   }
 
   result(`
@@ -58,14 +59,15 @@ window.pick = async function (event) {
 }
 
 async function build(img){
-  let {date, lat, lon} = await exif(img)
+  let {date, lat, lon, warning} =
+    (await exif(img)) || {date:new Date(), lat:47.6077558, lon:-122.3359538, warning:' Improve date and map.'}
   let map = `https://www.google.com/search?q=${lat},%20${lon}`
   let day = date.toLocaleString('en-us', {weekday:'long'})
   let month = date.toLocaleString('en-us', {month:'long'})
   let daydate = `${day}, ${month} ${date.getDate()}, ${date.getYear()+1900}`
   let title = window.title.value || "Photo with Map Preview"
   return  {title, story:[
-    {type:'paragraph',text:"▷Seattle. describe this trail"},
+    {type:'paragraph',text:"▷Seattle. Describe this place."+(warning||'')},
     {type:'html',text:`<img width=100% src=${img.src}>`},
     {type:'paragraph',text:daydate},
     {type:'map',text:`${lat}, ${lon}\n[${map} google map]`}
@@ -112,6 +114,7 @@ function exif(img) {
     EXIF.getData(img, function() {
       let file = img.src.split('/').pop()
       let make = EXIF.getTag(this, "Make");
+      if(!make) return resolve(null)
       let model = EXIF.getTag(this, "Model");
       let clock = EXIF.getTag(this, "DateTimeOriginal")
       let str = clock.split(" ");
