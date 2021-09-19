@@ -13,21 +13,39 @@ async function indexer() {
   let data = allassets[0].assetsData
   let folder = Object.keys(data)[0]
   let endpoint = Object.keys(data[folder])[0]
-  let files = data[folder][endpoint]
-  let done = [
-    'IMG_5719.JPG','IMG_5720.JPG','IMG_5722.JPG','IMG_5723.JPG','IMG_5724.JPG',
-    'IMG_5728.JPG','IMG_5730.JPG','IMG_5731.JPG','IMG_5732.JPG','IMG_5733.JPG',
-    'IMG_5734.JPG','IMG_5735.JPG','IMG_5737.JPG','IMG_5739.JPG','IMG_5740.JPG',
-    'IMG_5741.JPG','IMG_5742.JPG','IMG_5743.JPG','IMG_5745.JPG',// 'IMG_5746.JPG',
-    // 'IMG_5748.JPG','IMG_5749.JPG','IMG_5750.JPG','IMG_5752.JPG','IMG_5753.JPG',
-  ]
+  let files = data[folder][endpoint].filter(file => file.endsWith('JPG'))
+
+  let done = await alldone()
+  let todo = files.filter(file => !done.includes(file))
   const thumbnail = file => `<img width=47% src="${endpoint}/${folder}/${file}" onclick="pick(event)">`
-  window.gallery.innerHTML = files.filter(file => !done.includes(file)).map(thumbnail).join(" ")
+  if (todo.lenght > 0) {
+    window.gallery.innerHTML = todo.map(thumbnail).join(" ")
+  } else {
+    window.gallery.innerHTML = `<center><i>no new images of ${files.length} uploaded</i></center>`
+  }
+
   result(`
     <p>Name the Place Now or Look Ahead</p>
     <input id=title name=title size=50 placeholder="New Page Title">
     <p>Click First Photo of Sequence</p>
   `)
+}
+
+async function alldone() {
+  let sitemap = await fetch(`/system/sitemap.json`).then(res => res.json())
+  let infos = sitemap.filter(info => info.synopsis.startsWith('▷'))
+  let pages = await Promise.all(infos.map(info => fetch(`/${info.slug}.json`).then(res => res.json())))
+  let images = pages.reduce((sum, each) => sum.concat(pictures(each)),[])
+  return images
+
+  function pictures(page) {
+    let items = page.story.filter(item => item.type == 'html' && item.text.startsWith('<img '))
+    return items.map(item => {
+      let m = item.text.match(/src=(.*?)>/)
+      let path = m[1].split('/').reverse()
+      return path[0]
+    })
+  }
 }
 
 function result(html) {
@@ -47,7 +65,7 @@ async function build(img){
   let daydate = `${day}, ${month} ${date.getDate()}, ${date.getYear()+1900}`
   let title = window.title.value || "Photo with Map Preview"
   return  {title, story:[
-    {type:'paragraph',text:"describe this trail"},
+    {type:'paragraph',text:"▷Seattle. describe this trail"},
     {type:'html',text:`<img width=100% src=${img.src}>`},
     {type:'paragraph',text:daydate},
     {type:'map',text:`${lat}, ${lon}\n[${map} google map]`}
