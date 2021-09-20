@@ -46,10 +46,12 @@
     let slugs = categories[category].map(info => info.slug)
     let pages = await Promise.all(slugs.map(slug => fetch(`/${slug}.json`).then(res => res.json())))
     let text = pages.map(center).join("\n")
+    let html = pages.map(image).join("\n")
     let title = `Places Tagged ${category}`
     let story = [
       {type:'paragraph', text:'We found pages for these places. Update this page from the category on the [[View Places]] page.'},
-      {type:'map', text}
+      {type:'map', text},
+      {type:'html',text:html}
     ]
     open({title,story},event.shiftKey)
   }
@@ -71,6 +73,11 @@
     return `${lat}, ${lon} [[${page.title}]]`
   }
 
+  function image(page) {
+    let markup  = page.story.find(item => item.type == 'html').text
+    let m = markup.match(/src=(.*?)>/)
+    return `<img width=49% src="${m[1]}">`
+  }
 
 
 // U T I L I T I E S
