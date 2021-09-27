@@ -8,7 +8,15 @@
 
   let infos = []
   let categories = {}
-  fetch(`/system/sitemap.json`).then(res => res.json()).then(tally)
+  let origin
+  start()
+
+  async function start() {
+    origin = (await requestNeighborhood())[0]
+    let sitemap = await fetch(`//${origin}/system/sitemap.json`).then(res => res.json())
+    tally(sitemap)
+  }
+
 
   function tally(sitemap) {
     infos = sitemap.filter(info => info.synopsis.startsWith('▷'))
@@ -22,7 +30,6 @@
         cat.push(info)
       }
     }
-    console.log(categories)
 
     for (let tag of Object.keys(categories).sort()) {
       let cat = categories[tag]
@@ -44,7 +51,7 @@
   async function map(event) {
     let category = event.target.innerText
     let slugs = categories[category].map(info => info.slug)
-    let pages = await Promise.all(slugs.map(slug => fetch(`/${slug}.json`).then(res => res.json())))
+    let pages = await Promise.all(slugs.map(slug => fetch(`//${origin}/${slug}.json`).then(res => res.json())))
     let text = pages.map(center).join("\n")
     let html = pages.map(image).join("\n")
     let title = `Places Tagged ${category}`
@@ -91,4 +98,18 @@
     window.parent.postMessage(message, "*");
   }
 
+  function requestNeighborhood() {
+    return new Promise((resolve, reject) => {
+      window.addEventListener("message", neighborhood)
+      function neighborhood({data}) {
+        if (data.action != "neighborhood") return
+        window.removeEventListener(
+          "message", neighborhood)
+        resolve(data.neighborhood)
+      }
+      window.parent.postMessage({
+        action: "requestNeighborhood"
+      }, "*")
+    })
+  }
 </script>
