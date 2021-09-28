@@ -88,15 +88,21 @@ window.pick = async function (event) {
 }
 
 async function build(img){
+  let {date, lat, lon} = await exif(img)
+
   let fake = {date:new Date(), lat:47.6077558, lon:-122.3359538, warning:' Improve date and map.'}
-  let {date, lat, lon, warning} =(await exif(img)) || fake
+  let warning = []
+  if (!date) { date = fake.date; warning.push('date')}
+  if (!lat || !lon) {lat = fake.lat; lon = fake.lon; warning.push('map')}
+  warning = warning.length ? ` Improve the ${warning.join(' and ')}.` : ''
+
   let map = `https://www.google.com/search?q=${lat},%20${lon}`
   let day = date.toLocaleString('en-us', {weekday:'long'})
   let month = date.toLocaleString('en-us', {month:'long'})
   let daydate = `${day}, ${month} ${date.getDate()}, ${date.getYear()+1900}`
   let title = window.title.value || "Photo with Map Preview"
   return  {title, story:[
-    {type:'paragraph',text:"▷Seattle. Describe this place."+(warning||'')},
+    {type:'paragraph',text:"▷Seattle. Describe this place." + warning},
     {type:'html',text:`<img width=100% src=${img.src}>`},
     {type:'paragraph',text:daydate},
     {type:'map',text:`${lat}, ${lon}\n[${map} google map]`}
@@ -133,24 +139,30 @@ function open(page, keepLineup=false, forks=[]) {
 // https://github.com/exif-js/exif-js
 
 function exif(img) {
-  const latlon = exif => {
-    let deg = exif[0] + exif[1]/60 + exif[2]/60/60
-    if ('SW'.includes(exif[3])) deg = -deg
+
+  const bedate = tag => {
+    if (!tag) return undefined
+    let str = tag.split(" ");
+    let iso = str[0].replace(/:/g, "-");
+    return new Date(iso + " " +str[1]);
+  }
+
+  const latlon = (tag, ref) => {
+    if (!tag) return undefined
+    let deg = tag[0] + tag[1]/60 + tag[2]/60/60
+    if ('SW'.includes(ref)) deg = -deg
     deg = deg.toFixed(7)
     return +deg
   }
+
   return new Promise((resolve, reject) => {
     EXIF.getData(img, function() {
       let file = img.src.split('/').pop()
       let make = EXIF.getTag(this, "Make")
       let model = EXIF.getTag(this, "Model")
-      let clock = EXIF.getTag(this, "DateTimeOriginal")
-      let str = clock.split(" ");
-      let iso = str[0].replace(/:/g, "-");
-      let date = new Date(iso + " " +str[1]);
-      if (!EXIF.getTag(this, "GPSLatitude")) return resolve(null)
-      let lat = latlon([...EXIF.getTag(this, "GPSLatitude"), EXIF.getTag(this, "GPSLatitudeRef")])
-      let lon = latlon([...EXIF.getTag(this, "GPSLongitude"), EXIF.getTag(this, "GPSLongitudeRef")])
+      let date = bedate(EXIF.getTag(this, "DateTimeOriginal"))
+      let lat = latlon(EXIF.getTag(this, "GPSLatitude"), EXIF.getTag(this, "GPSLatitudeRef"))
+      let lon = latlon(EXIF.getTag(this, "GPSLongitude"), EXIF.getTag(this, "GPSLongitudeRef"))
       resolve({file,make,model,date,lat,lon})
     })
   })
