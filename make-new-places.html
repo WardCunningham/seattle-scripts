@@ -41,7 +41,7 @@ async function indexer() {
   let data = allassets[0].assetsData
   let folder = Object.keys(data)[0]
   let endpoint = '/assets' // for origin only
-  let files = data[folder][endpoint].filter(file => /\.jpe?g$/i.test(file))
+  let files = (data[folder][endpoint]||[]).filter(file => /\.jpe?g$/i.test(file))
 
   let done = await alldone()
   let todo = files.filter(file => !done.includes(file))
