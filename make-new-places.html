@@ -5,23 +5,51 @@
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
 <script type=module>
 
+// [
+//     {
+//         "panel": {
+//             "pageKey": "84d8d7bb",
+//             "itemId": "684aff73b47dcf20",
+//             "site": "ward.dojo.fed.wiki",
+//             "slug": "phototelling-quickstart",
+//             "title": "Phototelling Quickstart"
+//         },
+//         "assetsData": {
+//             "pages/phototelling-quickstart": {
+//                 "/assets": [
+//                     "IMG_5606.JPG"
+//                 ],
+//                 "//ward.dojo.fed.wiki/assets": [
+//                     "IMG_5602.JPG",
+//                     "IMG_5603.JPG",
+//                     "IMG_5604.JPG",
+//                     "IMG_5605.JPG",
+//                     "IMG_5606.JPG"
+//                 ]
+//             }
+//         }
+//     }
+// ]
+
+let origin
 indexer()
 
 async function indexer() {
+  origin = (await requestNeighborhood())[0]
   let allassets = await sources('assets')
   if (allassets.error) return result(allassets.error)
   let data = allassets[0].assetsData
   let folder = Object.keys(data)[0]
-  let endpoint = Object.keys(data[folder])[0]
+  let endpoint = '/assets' // for origin only
   let files = data[folder][endpoint].filter(file => /\.jpe?g$/i.test(file))
 
   let done = await alldone()
   let todo = files.filter(file => !done.includes(file))
-  const thumbnail = file => `<img width=47% src="${endpoint}/${folder}/${file}" onclick="pick(event)">`
+  const thumbnail = file => `<img width=47% src="//${origin}${endpoint}/${folder}/${file}" onclick="pick(event)">`
   if (todo.length) {
     window.gallery.innerHTML = todo.map(thumbnail).join(" ")
   } else {
-    window.gallery.innerHTML = `<center><i>No new images among ${files.length} uploaded</i></center>`
+    window.gallery.innerHTML = `<center><i>No unused images among ${files.length} uploaded</i></center>`
     console.log({files,done,todo})
   }
 
@@ -33,9 +61,9 @@ async function indexer() {
 }
 
 async function alldone() {
-  let sitemap = await fetch(`/system/sitemap.json`).then(res => res.json())
+  let sitemap = await fetch(`//${origin}/system/sitemap.json`).then(res => res.json())
   let infos = sitemap.filter(info => info.synopsis.startsWith('▷'))
-  let pages = await Promise.all(infos.map(info => fetch(`/${info.slug}.json`).then(res => res.json())))
+  let pages = await Promise.all(infos.map(info => fetch(`//${origin}/${info.slug}.json`).then(res => res.json())))
   let images = pages.reduce((sum, each) => sum.concat(pictures(each)),[])
   return images
 
@@ -56,6 +84,7 @@ function result(html) {
 window.pick = async function (event) {
   let page = await build(event.target)
   open(page,event.shiftKey)
+  window.title.value = ''
 }
 
 async function build(img){
@@ -127,4 +156,18 @@ function exif(img) {
   })
 }
 
+function requestNeighborhood() {
+  return new Promise((resolve, reject) => {
+    window.addEventListener("message", neighborhood)
+    function neighborhood({data}) {
+      if (data.action != "neighborhood") return
+      window.removeEventListener(
+        "message", neighborhood)
+      resolve(data.neighborhood)
+    }
+    window.parent.postMessage({
+      action: "requestNeighborhood"
+    }, "*")
+  })
+}
 </script>
