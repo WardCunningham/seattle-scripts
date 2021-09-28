@@ -88,8 +88,8 @@ window.pick = async function (event) {
 }
 
 async function build(img){
-  let {date, lat, lon, warning} =
-    (await exif(img)) || {date:new Date(), lat:47.6077558, lon:-122.3359538, warning:' Improve date and map.'}
+  let fake = {date:new Date(), lat:47.6077558, lon:-122.3359538, warning:' Improve date and map.'}
+  let {date, lat, lon, warning} =(await exif(img)) || fake
   let map = `https://www.google.com/search?q=${lat},%20${lon}`
   let day = date.toLocaleString('en-us', {weekday:'long'})
   let month = date.toLocaleString('en-us', {month:'long'})
@@ -142,13 +142,13 @@ function exif(img) {
   return new Promise((resolve, reject) => {
     EXIF.getData(img, function() {
       let file = img.src.split('/').pop()
-      let make = EXIF.getTag(this, "Make");
-      if(!make) return resolve(null)
-      let model = EXIF.getTag(this, "Model");
+      let make = EXIF.getTag(this, "Make")
+      let model = EXIF.getTag(this, "Model")
       let clock = EXIF.getTag(this, "DateTimeOriginal")
       let str = clock.split(" ");
       let iso = str[0].replace(/:/g, "-");
       let date = new Date(iso + " " +str[1]);
+      if (!EXIF.getTag(this, "GPSLatitude")) return resolve(null)
       let lat = latlon([...EXIF.getTag(this, "GPSLatitude"), EXIF.getTag(this, "GPSLatitudeRef")])
       let lon = latlon([...EXIF.getTag(this, "GPSLongitude"), EXIF.getTag(this, "GPSLongitudeRef")])
       resolve({file,make,model,date,lat,lon})
